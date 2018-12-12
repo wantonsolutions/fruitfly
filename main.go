@@ -387,15 +387,16 @@ func processAndPlotAgingData(mean, std [16][4]float64) {
     os.Mkdir("output",os.ModeDir | os.ModePerm)
     aggstatfile, _ := os.Create(fmt.Sprintf("output/stats.dat"))
     for i, applename := range names {
-        os.Mkdir(fmt.Sprintf("output/%d",i),os.ModeDir | os.ModePerm)
-        statfile, _ := os.Create(fmt.Sprintf("output/%d/stats.dat"))
+        iplus := i+1
+        os.Mkdir(fmt.Sprintf("output/%d",iplus),os.ModeDir | os.ModePerm)
+        statfile, _ := os.Create(fmt.Sprintf("output/%d/stats.dat",iplus))
         for _, photo := range applename {
             rypeness, img, cs := processRGBFile(photo, mean, std)
             path := strings.Split(photo,"/")
             date := path[len(path)-2]
-            writeOutProcessedImage(fmt.Sprintf("output/%d/%s.jpg",i,date),rypeness,img)
+            writeOutProcessedImage(fmt.Sprintf("output/%d/%s.jpg",iplus,date),rypeness,img)
             statfile.WriteString(fmt.Sprintf("%s\n",cs.String()))
-            aggstatfile.WriteString(fmt.Sprintf("%d,%s\n",i,cs.String()))
+            aggstatfile.WriteString(fmt.Sprintf("%d,%s\n",iplus,cs.String()))
         }
     }
 
