@@ -10,6 +10,7 @@ import (
  "image/jpeg"
  "image/png"
  "path/filepath"
+    "sort"
     "strings"
     "strconv"
     "image/color"
@@ -73,6 +74,8 @@ func main () {
             ITT = 1
         }
     }
+
+    log.SetFlags(log.LstdFlags | log.Lshortfile)
     
     fmt.Println("hello fruitfly")
     //Read in training files.
@@ -402,12 +405,13 @@ func GetAndSortSampleNames(dir string) [][]string{
     fmt.Println("Geting Sample Names")
     dirs, err := ioutil.ReadDir(dir)
     if err != nil {
+        log.Printf("Dir %s",dir)
         log.Fatal(err)
     }
     sortedNames := make([][]string,0)
     for i, d := range dirs {
         //exceptions to the rule, only grab data samples
-        if d.Name() == "read_train" || d.Name() == "name.bash" {
+        if d.Name() == "real_train" || d.Name() == "name.bash" {
             continue
         }
             
@@ -420,14 +424,28 @@ func GetAndSortSampleNames(dir string) [][]string{
         for i := range names {
             sortedNames[i] = append(sortedNames[i],dir + "/" + d.Name() + "/" + names[i])
         }
+        //now sort by date
     }
-    fmt.Println(sortedNames)
+    for i := range sortedNames {
+        sort.Sort(ByDate(sortedNames[i]))
+        fmt.Println(sortedNames[i])
+    }
     return sortedNames
+}
+
+type ByDate []string
+func (a ByDate) Len() int {return len(a)}
+func (a ByDate) Swap(i, j int) {a[i], a[j] = a[j], a[i]}
+func (a ByDate) Less(i, j int) bool {
+    iStats, _ := os.Stat(a[i])
+    jStats, _ := os.Stat(a[j])
+    return iStats.ModTime().Before(jStats.ModTime())
 }
     
 func getFilenames(dir string) []string {
     files, err := ioutil.ReadDir(dir)
     if err != nil {
+        log.Printf("Dir %s",dir)
         log.Fatal(err)
     }
     names := make([]string,0)
