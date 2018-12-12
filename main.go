@@ -10,6 +10,7 @@ import (
  "image/jpeg"
  "image/png"
  "path/filepath"
+    "strings"
     "strconv"
     "image/color"
 )
@@ -94,16 +95,21 @@ func main () {
     YCbCrStdHistogram := calculateStd(YCbCrClassifierHistograms,YCbCrMeanHistogram)
     printFHistogram(YCbCrMeanHistogram)
 
+    processAndPlotAgingData(RGBMeanHistogram,RGBStdHistogram)
+    return
     //Training Done, Isolate apple and calculate buckets for 
     sampleFilenames := getFilenames(sampleDir)
 
     for i := range sampleFilenames {
-        processRGBFile(sampleDir + sampleFilenames[i],RGBMeanHistogram,RGBStdHistogram)
+        rypeness, img := processRGBFile(sampleDir + sampleFilenames[i],RGBMeanHistogram,RGBStdHistogram)
+        writeOutProcessedImage(sampleFilenames[i],rypeness, img)
     }
     
     for i := range sampleFilenames {
-        processYCbCrFile(sampleDir + sampleFilenames[i],YCbCrMeanHistogram,YCbCrStdHistogram)
+        rypeness, img := processYCbCrFile(sampleDir + sampleFilenames[i],YCbCrMeanHistogram,YCbCrStdHistogram)
+        writeOutProcessedImage(sampleFilenames[i],rypeness, img)
     }
+
 }
 
 
@@ -225,7 +231,7 @@ func writeOutProcessedImage(filename string, rypeness string, newimg *image.NRGB
     base := filepath.Base(filename)
     dir := filepath.Dir(filename)
     ext := filepath.Ext(filename)
-    filenamediff := dir + "_mod_" +rypeness+ base
+    filenamediff := dir + "/" + "_mod_" +rypeness+ base
     log.Printf("Modified File :%s\n",filenamediff)
 
     f, err := os.Create(filenamediff)
@@ -255,7 +261,7 @@ func writeOutProcessedImage(filename string, rypeness string, newimg *image.NRGB
     }
 }
 
-func processRGBFile(filename string, mean, std [16][4]float64) {
+func processRGBFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA) {
     im := openImage(filename)
     bounds := im.Bounds()
     newimg := image.NewNRGBA(image.Rect(bounds.Min.X,bounds.Min.Y,bounds.Max.X,bounds.Max.Y))
@@ -263,12 +269,22 @@ func processRGBFile(filename string, mean, std [16][4]float64) {
     score = scoreImageRGB(score,bounds,mean,im)
     score = pagerankImage(score ,bounds)
     minR, maxR, minB, maxB, minG, maxG := getMaxMinRGB(score, bounds, &im, newimg)
+    //TODO seperate rypeness from this function it should be its own invocation
     rypeness := getRypenessRGB(float64(minR),float64(maxR),float64(minG),float64(maxG),float64(minB),float64(maxB))
-    writeOutProcessedImage(filename, rypeness, newimg)
+    return rypeness, newimg
 }
 
-func processYCbCrFile(filename string, mean, std [16][4]float64){
-    return
+func processYCbCrFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA) {
+    im := openImage(filename)
+    bounds := im.Bounds()
+    newimg := image.NewNRGBA(image.Rect(bounds.Min.X,bounds.Min.Y,bounds.Max.X,bounds.Max.Y))
+    score := initScore(bounds)
+    score = scoreImageRGB(score,bounds,mean,im)
+    score = pagerankImage(score ,bounds)
+    minR, maxR, minB, maxB, minG, maxG := getMaxMinRGB(score, bounds, &im, newimg)
+    //TODO seperate rypeness from this function it should be its own invocation
+    rypeness := getRypenessRGB(float64(minR),float64(maxR),float64(minG),float64(maxG),float64(minB),float64(maxB))
+    return rypeness, newimg
 }
 
 func calculateStd(classifiers [][16][4]float64, mean[16][4]float64) [16][4]float64{
@@ -306,7 +322,48 @@ func calculateMean(classifiers [][16][4]float64) [16][4]float64 {
     return mean
 }
 
+func processAndPlotAgingData(mean, std [16][4]float64) {
+    names := GetAndSortSampleNames("data/Aging_Study_1")
+    os.Mkdir("output",os.ModeDir | os.ModePerm)
+    for i, applename := range names {
+        os.Mkdir(fmt.Sprintf("output/%d",i),os.ModeDir | os.ModePerm)
+        for _, photo := range applename {
+            rypeness, img := processRGBFile(photo, mean, std)
+            path := strings.Split(photo,"/")
+            date := path[len(path)-2]
+            writeOutProcessedImage(fmt.Sprintf("output/%d/%s.jpg",i,date),rypeness,img)
+        }
+    }
 
+}
+
+func GetAndSortSampleNames(dir string) [][]string{
+    fmt.Println("Geting Sample Names")
+    dirs, err := ioutil.ReadDir(dir)
+    if err != nil {
+        log.Fatal(err)
+    }
+    sortedNames := make([][]string,0)
+    for i, d := range dirs {
+        //exceptions to the rule, only grab data samples
+        if d.Name() == "read_train" || d.Name() == "name.bash" {
+            continue
+        }
+            
+        names := getFilenames(dir + "/" + d.Name())
+        if i == 0 {
+            for _ = range names {
+                sortedNames = append(sortedNames,make([]string,0))
+            }
+        }
+        for i := range names {
+            sortedNames[i] = append(sortedNames[i],dir + "/" + d.Name() + "/" + names[i])
+        }
+    }
+    fmt.Println(sortedNames)
+    return sortedNames
+}
+    
 func getFilenames(dir string) []string {
     files, err := ioutil.ReadDir(dir)
     if err != nil {
