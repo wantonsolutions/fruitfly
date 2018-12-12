@@ -39,17 +39,17 @@ var classifierTable = map[string](*[RGB][MAXMIN]float64) {
 
 
 //Get rypeness checks that the RGB values are within the ranges specified by the RGB rypness detection paper.
-func getRypenessRGB(minR,maxR,minG,maxG,minB,maxB float64) string {
+func getRypenessRGB(cs ColorStat) string {
     var tags string
-    fmt.Printf("minR %f, maxR %f\n minG %f, maxG %f\n minB %f, maxB %f\n\n",minR,maxR,minG,maxG,minB,maxB)
+    fmt.Printf("%s",cs.String())
     for tag := range classifierTable {
         current := classifierTable[tag]
-        if minR > current[0][0] && 
-           maxR < current[0][1] &&
-           minG > current[1][0] && 
-           maxG < current[1][1] &&
-           minB > current[2][0] && 
-           maxB < current[2][1] {
+        if float64(cs.minR) > current[0][0] && 
+           float64(cs.maxR) < current[0][1] &&
+           float64(cs.minG) > current[1][0] && 
+           float64(cs.maxG) < current[1][1] &&
+           float64(cs.minB) > current[2][0] && 
+           float64(cs.maxB) < current[2][1] {
             tags += "_" + tag
         }
     }
@@ -101,7 +101,7 @@ func main () {
     sampleFilenames := getFilenames(sampleDir)
 
     for i := range sampleFilenames {
-        rypeness, img := processRGBFile(sampleDir + sampleFilenames[i],RGBMeanHistogram,RGBStdHistogram)
+        rypeness, img, _ := processRGBFile(sampleDir + sampleFilenames[i],RGBMeanHistogram,RGBStdHistogram)
         writeOutProcessedImage(sampleFilenames[i],rypeness, img)
     }
     
@@ -187,35 +187,92 @@ func pagerankImage(score [][]float64, bounds image.Rectangle) ([][]float64) {
 
 }
 
-func getMaxMinRGB(score [][]float64, bounds image.Rectangle, im *image.Image, newimg *image.NRGBA) (minR, maxR, minB, maxB, minG, maxG int) {
-    minR, minB, minG = 256,256,256
-    maxR, maxB, maxG = 0,0,0
+type ColorStat struct {
+    minR int
+    maxR int
+    avgR float64
+    stdR float64
+    minB int
+    maxB int
+    avgB float64
+    stdB float64
+    minG int
+    maxG int
+    avgG float64
+    stdG float64
+}
+
+func NewColorStat() ColorStat {
+    return ColorStat{}
+}
+
+func (cs ColorStat) String() string {
+    return fmt.Sprintf("%d,%d,%f,%f,%d,%d,%f,%f,%d,%d,%f,%f",cs.minR,cs.maxR,cs.avgR,cs.stdR,cs.minB,cs.maxB,cs.avgB,cs.stdB,cs.minG,cs.maxG,cs.avgG,cs.stdG)
+}
+
+func rollingAverage(m_k_1, x, k float64) (m_k float64) {
+    m_k = m_k_1 + (x - m_k_1)/k
+    return
+}
+func rollingStd(s_k_1,x,m_k_1,m_k float64) (s_k float64) {
+    s_k = s_k_1 + (x - m_k_1)*(x - m_k)
+    return
+}
+
+func getMaxMinRGB(score [][]float64, bounds image.Rectangle, im *image.Image, newimg *image.NRGBA) (ColorStat) {
+    cs := NewColorStat()
+    cs.minR, cs.minB, cs.minG = 256,256,256
+    var i int =0
     for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
         for x := bounds.Min.X; x < bounds.Max.X; x++ {
             r, g, b, _ := (*im).At(x,y).RGBA()
             if score[x][y] > 0.0 {
+                i++
+                
+                
                 (*newimg).Set(x,y, (*im).At(x,y))
                 sr := r >>8
                 sb := b >>8
                 sg := g >>8
-                if int(sr) < minR {
-                    minR = int(sr)
+
+                //calculate the rolling mean
+                var (
+                    tmpAvgr, tmpAvgb, tmpAvgg float64
+                )
+                if i == 0 {
+                    cs.avgR = float64(sr)
+                    cs.avgG = float64(sg)
+                    cs.avgB = float64(sb)
+                } else {
+                    //rolling average
+                    tmpAvgr = rollingAverage(cs.avgR,float64(sr),float64(i))
+                    tmpAvgg = rollingAverage(cs.avgG,float64(sg),float64(i))
+                    tmpAvgb = rollingAverage(cs.avgB,float64(sb),float64(i))
+                    cs.stdR = rollingStd(cs.stdR,float64(sr),cs.avgR,tmpAvgr)
+                    cs.stdG = rollingStd(cs.stdG,float64(sg),cs.avgG,tmpAvgg)
+                    cs.stdB = rollingStd(cs.stdB,float64(sb),cs.avgB,tmpAvgb)
+                    cs.avgR = tmpAvgr
+                    cs.avgG = tmpAvgg
+                    cs.avgB = tmpAvgb
                 }
-                if int(sb) < minB {
-                    minB = int(sb)
+                if int(sr) < cs.minR {
+                    cs.minR = int(sr)
                 }
-                if int(sg) < minG {
-                    minG = int(sg)
+                if int(sb) < cs.minB {
+                    cs.minB = int(sb)
+                }
+                if int(sg) < cs.minG {
+                    cs.minG = int(sg)
                 }
                 //MAX
-                if int(sr) > maxR {
-                    maxR = int(sr)
+                if int(sr) > cs.maxR {
+                    cs.maxR = int(sr)
                 }
-                if int(sb) > maxB {
-                    maxB = int(sb)
+                if int(sb) > cs.maxB {
+                    cs.maxB = int(sb)
                 }
-                if int(sg) > maxG {
-                    maxG = int(sg)
+                if int(sg) > cs.maxG {
+                    cs.maxG = int(sg)
                 }
                 
             } else {
@@ -224,14 +281,14 @@ func getMaxMinRGB(score [][]float64, bounds image.Rectangle, im *image.Image, ne
             
         }
     }
-    return
+    return cs
 }
 
 func writeOutProcessedImage(filename string, rypeness string, newimg *image.NRGBA) {
     base := filepath.Base(filename)
     dir := filepath.Dir(filename)
     ext := filepath.Ext(filename)
-    filenamediff := dir + "/" + "_mod_" +rypeness+ base
+    filenamediff := dir + "/" +rypeness+ base
     log.Printf("Modified File :%s\n",filenamediff)
 
     f, err := os.Create(filenamediff)
@@ -261,17 +318,17 @@ func writeOutProcessedImage(filename string, rypeness string, newimg *image.NRGB
     }
 }
 
-func processRGBFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA) {
+func processRGBFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA, ColorStat) {
     im := openImage(filename)
     bounds := im.Bounds()
     newimg := image.NewNRGBA(image.Rect(bounds.Min.X,bounds.Min.Y,bounds.Max.X,bounds.Max.Y))
     score := initScore(bounds)
     score = scoreImageRGB(score,bounds,mean,im)
     score = pagerankImage(score ,bounds)
-    minR, maxR, minB, maxB, minG, maxG := getMaxMinRGB(score, bounds, &im, newimg)
+    cs := getMaxMinRGB(score, bounds, &im, newimg)
     //TODO seperate rypeness from this function it should be its own invocation
-    rypeness := getRypenessRGB(float64(minR),float64(maxR),float64(minG),float64(maxG),float64(minB),float64(maxB))
-    return rypeness, newimg
+    rypeness := getRypenessRGB(cs)
+    return rypeness, newimg, cs
 }
 
 func processYCbCrFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA) {
@@ -281,9 +338,9 @@ func processYCbCrFile(filename string, mean, std [16][4]float64) (string, *image
     score := initScore(bounds)
     score = scoreImageRGB(score,bounds,mean,im)
     score = pagerankImage(score ,bounds)
-    minR, maxR, minB, maxB, minG, maxG := getMaxMinRGB(score, bounds, &im, newimg)
+    cs := getMaxMinRGB(score, bounds, &im, newimg)
     //TODO seperate rypeness from this function it should be its own invocation
-    rypeness := getRypenessRGB(float64(minR),float64(maxR),float64(minG),float64(maxG),float64(minB),float64(maxB))
+    rypeness := getRypenessRGB(cs)
     return rypeness, newimg
 }
 
@@ -325,13 +382,17 @@ func calculateMean(classifiers [][16][4]float64) [16][4]float64 {
 func processAndPlotAgingData(mean, std [16][4]float64) {
     names := GetAndSortSampleNames("data/Aging_Study_1")
     os.Mkdir("output",os.ModeDir | os.ModePerm)
+    aggstatfile, _ := os.Create(fmt.Sprintf("output/stats.dat"))
     for i, applename := range names {
         os.Mkdir(fmt.Sprintf("output/%d",i),os.ModeDir | os.ModePerm)
+        statfile, _ := os.Create(fmt.Sprintf("output/%d/stats.dat"))
         for _, photo := range applename {
-            rypeness, img := processRGBFile(photo, mean, std)
+            rypeness, img, cs := processRGBFile(photo, mean, std)
             path := strings.Split(photo,"/")
             date := path[len(path)-2]
             writeOutProcessedImage(fmt.Sprintf("output/%d/%s.jpg",i,date),rypeness,img)
+            statfile.WriteString(fmt.Sprintf("%s\n",cs.String()))
+            aggstatfile.WriteString(fmt.Sprintf("%d,%s\n",i,cs.String()))
         }
     }
 
