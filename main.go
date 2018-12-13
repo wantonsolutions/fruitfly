@@ -386,6 +386,7 @@ func processAndPlotAgingData(mean, std [16][4]float64) {
     names := GetAndSortSampleNames("data/Aging_Study_1")
     os.Mkdir("output",os.ModeDir | os.ModePerm)
     aggstatfile, _ := os.Create(fmt.Sprintf("output/stats.dat"))
+    
     for i, applename := range names {
         iplus := i+1
         os.Mkdir(fmt.Sprintf("output/%d",iplus),os.ModeDir | os.ModePerm)
