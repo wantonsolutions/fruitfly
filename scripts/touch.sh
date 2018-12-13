@@ -18,3 +18,5 @@ toucher $path/dec_5_2018
 toucher $path/dec_6_2018
 toucher $path/dec_7_2018
 toucher $path/dec_10_2018
+toucher $path/dec_11_2018
+toucher $path/dec_12_2018
