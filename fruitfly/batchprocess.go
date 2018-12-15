@@ -19,6 +19,8 @@ const RGB = 3
 const MAXMIN = 2
 const ITT = 1
 
+var encode = true
+
 func Process() {
 	//Only a single argument for the number of itterations to perform on the imaging sharpening step.
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -43,6 +45,10 @@ func Process() {
 	YCbCrMeanHistogram := calculateMean(YCbCrClassifierHistograms)
 	YCbCrStdHistogram := calculateStd(YCbCrClassifierHistograms, YCbCrMeanHistogram)
 	printFHistogram(YCbCrMeanHistogram)
+    
+    if encode {
+        WriteModel("model.gob",RGBMeanHistogram)
+    }
 
 	processAndPlotAgingData(RGBMeanHistogram, RGBStdHistogram)
 	return
@@ -95,16 +101,27 @@ func writeOutProcessedImage(filename string, rypeness string, newimg *image.NRGB
 	}
 }
 
-func processRGBFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA, ColorStat) {
-	im := openImage(filename)
-	bounds := im.Bounds()
-	newimg := image.NewNRGBA(image.Rect(bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y))
+func calculateScore(bounds image.Rectangle, mean[16][4]float64, im image.Image) ([][]float64) {
 	score := initScore(bounds)
 	score = scoreImageRGB(score, bounds, mean, im)
 	score = pagerankImage(score, bounds)
+    return score
+}
+
+func processRypenessRGB(score [][]float64, bounds image.Rectangle, im image.Image) (string, *image.NRGBA, ColorStat) {
+	newimg := image.NewNRGBA(image.Rect(bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y))
 	cs := getMaxMinRGB(score, bounds, &im, newimg)
-	//TODO seperate rypeness from this function it should be its own invocation
 	rypeness := GetRypenessRGB(cs)
+    return rypeness, newimg, cs
+}
+
+
+
+func processRGBFile(filename string, mean, std [16][4]float64) (string, *image.NRGBA, ColorStat) {
+	im := openImage(filename)
+	bounds := im.Bounds()
+    score := calculateScore(bounds,mean,im)
+    rypeness, newimg, cs := processRypenessRGB(score,bounds,im)
 	return rypeness, newimg, cs
 }
 

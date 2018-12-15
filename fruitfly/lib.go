@@ -1,10 +1,13 @@
 package fruitfly
 
 import (
+    "os"
 	"fmt"
 	"image"
 	"image/color"
 	"math"
+    "log"
+    "encoding/gob"
 )
 
 var UNDERRYPE = [RGB][MAXMIN]float64{{0.0, 9.3}, {0.0, 6.45}, {0.0, 4.09}}
@@ -317,4 +320,33 @@ func getMaxMinRGB(score [][]float64, bounds image.Rectangle, im *image.Image, ne
 		}
 	}
 	return cs
+}
+
+func WriteModel(filename string, histogram [16][4]float64) {
+    f, err := os.Create(filename)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close()
+    enc := gob.NewEncoder(f)
+    err = enc.Encode(histogram)
+    if err != nil {
+        log.Fatal(err)
+    }
+    return
+}
+
+func ReadModel(filename string) [16][4]float64 {
+    f, err := os.Open(filename)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close()
+    var histogram [16][4]float64
+    dec := gob.NewDecoder(f)
+    err = dec.Decode(&histogram)
+    if err != nil {
+        log.Fatal(err)
+    }
+    return histogram
 }
