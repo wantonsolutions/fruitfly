@@ -1,13 +1,13 @@
 package fruitfly
 
 import (
-    "time"
+    //"time"
     "log"
 )
 
 func Server(port string) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
+    /*
     err, addr := net.ResolveUDPAddr("udp", "localhost:port")
     if err != nil {
         log.Fatal(err)
@@ -20,5 +20,5 @@ func Server(port string) {
         handelConn(conn)
         log.Printf("Serving at :%s",port)
         time.Sleep(time.Second)
-    }
+    }*/
 }

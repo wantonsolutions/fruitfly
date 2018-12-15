@@ -2,7 +2,7 @@ package fruitfly
 
 import (
     "log"
-    "net"
+//    "net"
 )
 
 const PHOTO_COUNT = 3
